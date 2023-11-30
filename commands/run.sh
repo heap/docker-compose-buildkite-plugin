@@ -313,6 +313,7 @@ fi
 
 if [[ "$(plugin_read_config QUIET_PULL "false")" == "true" ]] ; then
   up_params+=("--quiet-pull")
+  pull_params+=("--quiet")
 fi
 
 dependency_exitcode=0
