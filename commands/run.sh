@@ -62,15 +62,16 @@ if [[ ${#prebuilt_services[@]} -gt 0 ]] ; then
   up_params+=(-f "$override_file")
 fi
 
+pull_params+=("pull")
 if [[ "$(plugin_read_config QUIET_PULL "false")" == "true" ]] ; then
   pull_params+=("--quiet")
 fi
 
 # If there are multiple services to pull, run it in parallel (although this is now the default)
 if [[ ${#pull_services[@]} -gt 1 ]] ; then
-  pull_params+=("pull" "--parallel" "${pull_services[@]}")
+  pull_params+=("--parallel" "${pull_services[@]}")
 elif [[ ${#pull_services[@]} -eq 1 ]] ; then
-  pull_params+=("pull" "${pull_services[0]}")
+  pull_params+=("${pull_services[0]}")
 fi
 
 # Pull down specified services
