@@ -1,8 +1,6 @@
 #!/bin/bash
 set -ueo pipefail
 
-set -x
-
 # Run takes a service name, pulls down any pre-built image for that name
 # and then runs docker-compose run a generated project name
 
