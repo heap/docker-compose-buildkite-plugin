@@ -152,6 +152,9 @@ build_params=(build)
 
 if [[ ! "$(plugin_read_config SKIP_PULL "false")" == "true" ]] ; then
   build_params+=(--pull)
+  if [[ "$(plugin_read_config QUIET_PULL "false")" == "true" ]] ; then
+    pull_params+=(--quiet)
+  fi
 fi
 
 if [[ "$(plugin_read_config NO_CACHE "false")" == "true" ]] ; then
