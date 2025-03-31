@@ -2,11 +2,10 @@
 
 A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) that lets you build, run and push build steps using [Docker Compose](https://docs.docker.com/compose/).
 
-* Containers are built, run and linked on demand using Docker Compose
-* Containers are namespaced to each build job, and cleaned up after use
-* Supports pre-building of images, allowing for fast parallel builds across distributed agents
-* Supports pushing tagged images to a repository
-
+- Containers are built, run and linked on demand using Docker Compose
+- Containers are namespaced to each build job, and cleaned up after use
+- Supports pre-building of images, allowing for fast parallel builds across distributed agents
+- Supports pushing tagged images to a repository
 
 ## Examples
 
@@ -30,7 +29,11 @@ The name of the service the command should be run within. If the docker-compose 
 
 #### `push`
 
-A list of services to push.  You can specify just the service name to push or the format `service:registry:tag` to override where the service's image is pushed to. Needless to say, the image for the service must have been built in the very same step or built and pushed previously to ensure it is available for pushing.
+A list of services to push. You can specify just the service name to push or the format `service:registry:tag` to override where the service's image is pushed to. Needless to say, the image for the service must have been built in the very same step or built and pushed previously to ensure it is available for pushing.
+
+:warning: If a service does not have an `image` configuration and no registry/tag are specified in the `push` option, pushing of the service will be skipped by docker.
+
+:warning: The `push` command will fail when the image refers to a remote registry that requires a login and the agent has not been authenticated for it (for example, using the [ecr](https://github.com/buildkite-plugins/ecr-buildkite-plugin) or [docker-login](https://github.com/buildkite-plugins/docker-login-buildkite-plugin) plugins).
 
 ### Other options
 
@@ -82,13 +85,19 @@ Whether or not to automatically propagate all pipeline environment variables int
 
 **Important**: only pipeline environment variables will be propagated (what you see in the BuildKite UI, those listed in `$BUILDKITE_ENV_FILE`). This does not include variables exported in preceeding `environment` hooks. If you wish for those to be propagated you will need to list them specifically or use `env-propagation-list`.
 
-### `propagate-aws-auth-tokens` (run only, boolean)
+#### `propagate-aws-auth-tokens` (run only, boolean)
 
 Whether or not to automatically propagate aws authentication environment variables into the docker container. Avoiding the need to be specified with `environment`. This is useful for example if you are using an assume role plugin or you want to pass the role of an agent running in ECS or EKS to the docker container.
 
 Will propagate `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_STS_REGIONAL_ENDPOINTS`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_ROLE_ARN`, `AWS_CONTAINER_CREDENTIALS_FULL_URI`, `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI`, and `AWS_CONTAINER_AUTHORIZATION_TOKEN`, only if they are set already.
 
 When the `AWS_WEB_IDENTITY_TOKEN_FILE` is specified, it will also mount it automatically for you and make it usable within the container.
+
+#### `propagate-gcp-auth-tokens` (run only, boolean)
+
+Whether or not to automatically propagate gcp auth credentials into the docker container. Avoiding the need to be specified with `environment`. This is useful if you are using a workload identity federation to impersonate a service account and you want to pass it to the docker container. This is compatible with the `gcp-workload-identity-federation` plugin.
+
+Will propagate `GOOGLE_APPLICATION_CREDENTIALS`, `CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE` and `BUILDKITE_OIDC_TMPDIR` and also mount the dir specified by `BUILDKITE_OIDC_TMPDIR` into the container.
 
 #### `command` (run only, array)
 
@@ -170,6 +179,12 @@ A list of images to attempt pulling before building in the format `service:CACHE
 
 They will be mapped directly to `cache-from` elements in the build according to the spec so any valid format there should be allowed.
 
+#### `cache-to` (build only, string or array)
+
+A list of export locations to be used to share build cache with future builds in the format `service:CACHE-SPEC` to allow for layer re-use. Unsupported caches are ignored and do not prevent building images.
+
+They will be mapped directly to `cache-to` elements in the build according to the spec so any valid format there should be allowed.
+
 #### `target` (build only)
 
 Allow for intermediate builds as if building with docker's `--target VALUE` options.
@@ -180,7 +195,7 @@ Note that there is a single build command run for all services so the target val
 
 A list of volumes to mount into the container. If a matching volume exists in the Docker Compose config file, this option will override that definition.
 
-Additionally, volumes may be specified via the agent environment variable `BUILDKITE_DOCKER_DEFAULT_VOLUMES`, a `;` (semicolon)  delimited list of mounts in the `-v` syntax. (Ex. `buildkite:/buildkite;./app:/app`).
+Additionally, volumes may be specified via the agent environment variable `BUILDKITE_DOCKER_DEFAULT_VOLUMES`, a `;` (semicolon) delimited list of mounts in the `-v` syntax. (Ex. `buildkite:/buildkite;./app:/app`).
 
 #### `expand-volume-vars` (run only, boolean, unsafe)
 
@@ -225,6 +240,10 @@ The default is `false`.
 If set to false, runs with `--no-deps` and doesn't start linked services.
 
 The default is `true`.
+
+### `progress` (string)
+
+If set, runs with `--progress VALUE` (can be any of: auto, tty, plain, json, quiet).
 
 #### `pre-run-dependencies` (run only, boolean)
 
@@ -278,19 +297,26 @@ A list of KEY=VALUE that are passed through as service labels when image is bein
 
 #### `compatibility` (boolean)
 
-If set to true, all docker compose commands will rum with compatibility mode. Equivalent to `--compatibility` in docker compose.
+If set to true, all docker compose commands will run with compatibility mode. Equivalent to `--compatibility` in docker compose.
 
 The default is `false`.
 
 Note that [the effect of this option changes depending on your docker compose CLI version](https://docs.docker.com/compose/cli-command-compatibility/#flags-that-will-not-be-implemented):
-* in v1 it translates (composefile) v3 deploy keys to their non-swarm (composefile) v2 equivalents
-* in v2 it will revert some behaviour to v1 as well, including (but not limited to):
+
+- in v1 it translates (composefile) v3 deploy keys to their non-swarm (composefile) v2 equivalents
+- in v2 it will revert some behaviour to v1 as well, including (but not limited to):
   - [Character separator for container names](https://github.com/docker/compose/blob/a0acc20d883ce22b8b0c65786e3bea1328809bbd/cmd/compose/compose.go#L181)
   - [Not normalizing compose models (when running `config`)](https://github.com/docker/compose/blob/2e7644ff21f9ca0ea6fb5e8d41d4f6af32cd7e20/cmd/compose/convert.go#L69)
 
 #### `entrypoint` (run only)
 
 Sets the `--entrypoint` argument when running `docker compose`.
+
+#### `require-prebuild` (run only, boolean)
+
+If no prebuilt image is found for the run step, it will cause the plugin to fail the step.
+
+The default is `false`.
 
 #### `service-ports` (run only, boolean)
 
@@ -322,16 +348,100 @@ You may want to also add `BUILDKIT_INLINE_CACHE=1` to your build arguments (`arg
 
 It will add the `--ssh` option to the build command with the passed value (if `true` it will use `default`). Note that it assumes you have a compatible docker installation and configuration in the agent (meaning you are using BuildKit and it is correctly setup).
 
-#### `secrets` (build only, array of strings)
+#### `with-dependencies` (build only, boolean)
 
-All elements in this array will be passed literally to the `build` command as parameters of the [`--secrets` option](https://docs.docker.com/engine/reference/commandline/buildx_build/#secret). Note that you must have BuildKit enabled for this option to have any effect and special `RUN` stanzas in your Dockerfile to actually make use of them.
+If set to true, docker compose will build with the `--with-dependencies` option which will also build dependencies transitively.
+
+The default is `false`.
+
+#### `builder` (object)
+
+Defines the properties required for creating, using and removing Builder Instances. If not set, the default Builder Instance on the Agent Instance will be used.
+
+##### `bootstrap` (boolean)
+
+If set to true, will boot builder instance after creation. Optional when using `create`.
+
+The default is `true`.
+
+##### `create` (boolean)
+
+If set to true, will use `docker buildx create` to create a new Builder Instance using the propeties defined. If a Builder Instance with the same `name` already exists, it will not be recreated.
+
+The default is `false`.
+
+##### `debug` (boolean)
+
+If set to true, enables debug logging during creation of builder instance. Optional when using `create`.
+
+The default is `false`.
+
+##### `driver`
+
+If set will create a Builder Instance using the selected Driver and use it. Available Drivers:
+
+- `docker-container` creates a dedicated BuildKit container using Docker.
+- `kubernetes` creates BuildKit pods in a Kubernetes cluster.
+- `remote` connects directly to a manually managed BuildKit daemon.
+
+More details on different [Build Drivers](https://docs.docker.com/build/builders/drivers/).
+
+##### `driver-opt`
+
+Commas separated, Key-Value pairs of driver-specific options to configure the Builder Instance when using `create`. Available options for each Driver:
+
+- [docker-container](https://docs.docker.com/build/builders/drivers/docker-container/)
+- [kubernetes](https://docs.docker.com/build/builders/drivers/kubernetes/)
+- [remote](https://docs.docker.com/build/builders/drivers/remote/)
+
+Example: `memory=100m,cpuset-cpus=1`
+
+##### `keep-daemon` (boolean)
+
+If set to true, will keep the BuildKit daemon running after the buildx context (Builder) is removed. This is useful when you manage BuildKit daemons and buildx contexts independently. Only supported by the `docker-container` and `kubernetes` drivers. Optional when using `remove`.
+
+The default is `false`.
+
+##### `keep-state` (boolean)
+
+If set to true, will keep BuildKit state so it can be reused by a new Builder with the same name, persisting the driver's cache. Currently, only supported by the `docker-container` driver. Optional when using `remove`.
+
+The default is `false`.
+
+##### `name`
+
+Sets the name of the Builder instance to create or use. Required when using `create` or `use` builder paramaters.
+
+##### `platform`
+
+Commas separated, fixed platforms for builder instance. Optional when using `create`.
+
+Example: `linux/amd64,linux/arm64`
+
+##### `remote-address`
+
+Address of remote builder instance. Required when using `driver: remote`.
+
+Example: `tcp://localhost:1234`
+
+##### `remove` (boolean)
+
+If set to true will stop and remove the Builder Instance specified by `name`.
+
+The default is `false`.
+
+##### `use` (boolean)
+
+If set to true will use Builder Instance specified by `name`.
+
+The default is `false`.
 
 ## Developing
 
 To run the tests:
 
 ```bash
-docker-compose run --rm tests bats tests tests/v1
+docker compose run --rm tests bats tests tests/v1
 ```
 
 ## License

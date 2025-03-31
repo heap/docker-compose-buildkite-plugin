@@ -35,6 +35,8 @@ while read -r name ; do
   fi
 done <<< "$(plugin_read_list PULL)"
 
+prebuilt_image_namespace="$(plugin_read_config PREBUILT_IMAGE_NAMESPACE 'docker-compose-plugin-')"
+
 # A list of tuples of [service image cache_from] for build_image_override_file
 prebuilt_service_overrides=()
 prebuilt_services=()
@@ -45,12 +47,12 @@ for service_name in "${prebuilt_candidates[@]}" ; do
   if [[ -n "$prebuilt_image_override" ]] && [[ "$service_name" == "$run_service" ]] ; then
     echo "~~~ :docker: Overriding run image for $service_name"
     prebuilt_image="$prebuilt_image_override"
-  elif prebuilt_image=$(get_prebuilt_image "$service_name") ; then
+  elif prebuilt_image=$(get_prebuilt_image "$prebuilt_image_namespace" "$service_name") ; then
      echo "~~~ :docker: Found a pre-built image for $service_name"
   fi
 
   if [[ -n "$prebuilt_image" ]] ; then
-    prebuilt_service_overrides+=("$service_name" "$prebuilt_image" "" 0 0)
+    prebuilt_service_overrides+=("$service_name" "$prebuilt_image" "" 0 0 0)
     prebuilt_services+=("$service_name")
 
     # If it's prebuilt, we need to pull it down
@@ -161,6 +163,23 @@ if [[ "$(plugin_read_config PROPAGATE_AWS_AUTH_TOKENS "false")" =~ ^(true|on|1)$
       run_params+=( --volume "${AWS_WEB_IDENTITY_TOKEN_FILE}:${AWS_WEB_IDENTITY_TOKEN_FILE}" )
   fi
 fi
+
+# Propagate gcp auth environment variables into the container e.g. from workload identity federation plugins
+if [[ "$(plugin_read_config PROPAGATE_GCP_AUTH_TOKENS "false")" =~ ^(true|on|1)$ ]] ; then
+  if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]] ; then
+      run_params+=( --env "GOOGLE_APPLICATION_CREDENTIALS" )
+  fi
+  if [[ -n "${CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE:-}" ]] ; then
+      run_params+=( --env "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE" )
+  fi
+  if [[ -n "${BUILDKITE_OIDC_TMPDIR:-}" ]] ; then
+      run_params+=( --env "BUILDKITE_OIDC_TMPDIR" )
+      # Add the OIDC temp dir as a volume
+      run_params+=( --volume "${BUILDKITE_OIDC_TMPDIR}:${BUILDKITE_OIDC_TMPDIR}" )
+  fi
+fi
+
+
 
 # If requested, propagate a set of env vars as listed in a given env var to the
 # container.
@@ -311,6 +330,13 @@ if [[ -n "${BUILDKITE_AGENT_BINARY_PATH:-}" ]] ; then
     "-e" "BUILDKITE_AGENT_ACCESS_TOKEN"
     "-v" "$BUILDKITE_AGENT_BINARY_PATH:/usr/bin/buildkite-agent"
   )
+  if [[ -n "${BUILDKITE_AGENT_JOB_API_SOCKET:-}" ]] ; then
+    run_params+=(
+      "-e" "BUILDKITE_AGENT_JOB_API_SOCKET"
+      "-e" "BUILDKITE_AGENT_JOB_API_TOKEN"
+      "-v" "$BUILDKITE_AGENT_JOB_API_SOCKET:$BUILDKITE_AGENT_JOB_API_SOCKET"
+    )
+  fi
 fi
 
 # Optionally expose service ports

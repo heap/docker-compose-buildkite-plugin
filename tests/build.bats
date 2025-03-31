@@ -296,23 +296,6 @@ setup_file() {
   unstub docker
 }
 
-@test "Build with secrets" {
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_BUILD=myservice
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_SECRETS_0='id=test,file=~/.test'
-  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_SECRETS_1='id=SECRET_VAR'
-
-  stub docker \
-    "compose -f docker-compose.yml -p buildkite1111 build --pull --secret \* --secret \* \* : echo built \${12} with secrets \${9} and \${11}"
-
-  run "$PWD"/hooks/command
-
-  assert_success
-  assert_output --partial "built myservice"
-  assert_output --partial "with secrets id=test,file=~/.test and id=SECRET_VAR"
-
-  unstub docker
-}
-
 @test "Build without pull" {
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_BUILD=myservice
   export BUILDKITE_PLUGIN_DOCKER_COMPOSE_SKIP_PULL=true
@@ -341,5 +324,20 @@ setup_file() {
 
   assert_success
   assert_output --partial "built myservice"
+  unstub docker
+}
+
+@test "Build with with-dependencies" {
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_BUILD=myservice
+  export BUILDKITE_PLUGIN_DOCKER_COMPOSE_WITH_DEPENDENCIES=true
+
+  stub docker \
+    "compose -f docker-compose.yml -p buildkite1111 build --pull --with-dependencies myservice : echo built myservice"
+
+  run "$PWD"/hooks/command
+
+  assert_success
+  assert_output --partial "built myservice"
+
   unstub docker
 }

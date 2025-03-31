@@ -9,10 +9,10 @@ configuration:
     run:
       type: string
     build:
-      type: [ string, array ]
+      type: [string, array]
       minimum: 1
     push:
-      type: [ string, array ]
+      type: [string, array]
       minimum: 1
 
     ansi:
@@ -23,6 +23,35 @@ configuration:
     build-alias:
       type: [ string, array ]
       minimum: 1
+    builder:
+      type: object
+      properties:
+        bootstrap:
+          type: boolean
+        create:
+          type: boolean
+        debug:
+          type: boolean
+        driver:
+          type: string
+          enum: [ "docker-container", "kubernetes", "remote" ]
+        driver-opt:
+          type: string
+        keep-daemon:
+          type: boolean
+        keep-state:
+          type: boolean
+        name:
+          type: string
+        platform:
+          type: string
+        remote-address:
+          type: string
+        remove:
+          type: boolean
+        use:
+          type: boolean
+      additionalProperties: false
     build-labels:
       type: [ string, array ]
       minimum: 1
@@ -33,6 +62,9 @@ configuration:
     buildkit-inline-cache:
       type: boolean
     cache-from:
+      type: [ string, array ]
+      minimum: 1
+    cache-to:
       type: [ string, array ]
       minimum: 1
     cli-version:
@@ -78,6 +110,15 @@ configuration:
       type: boolean
     pre-run-dependencies:
       type: boolean
+    prebuilt-image-namespace:
+      type: string
+    progress:
+      type: string
+      enum: [ "auto", "tty", "plain", "json", "quiet" ]
+    propagate-aws-auth-tokens:
+      type: boolean
+    propagate-gcp-auth-tokens:
+      type: boolean
     propagate-environment:
       type: boolean
     propagate-uid-gid:
@@ -91,16 +132,14 @@ configuration:
       type: integer
     quiet-pull:
       type: boolean
+    require-prebuild:
+      type: boolean
     rm:
       type: boolean
     run-image:
       type: string
     run-labels:
       type: boolean
-    secrets:
-      type: array
-      items:
-        type: string
     service-ports:
       type: boolean
     shell:
@@ -129,6 +168,8 @@ configuration:
       minimum: 1
     wait:
       type: boolean
+    with-dependencies:
+      type: boolean
     workdir:
       type: string
   anyOf:
@@ -148,6 +189,7 @@ configuration:
     buildkit: [ build ]
     buildkit-inline-cache: [ build ]
     cache-from: [ build ]
+    cache-to: [ build ]
     command: [ run ]
     dependencies: [ run ]
     entrypoint: [ run ]
@@ -162,18 +204,19 @@ configuration:
     mount-ssh-agent: [ run ]
     no-cache: [ build, run ]
     pre-run-dependencies: [ run ]
+    progress: [ build, push, run ]
     propagate-environment: [ run ]
     propagate-uid-gid: [ run ]
     pull: [ run ]
     pull-retries: [ run ]
     push-retries: [ push ]
     quiet-pull: [ run ]
+    require-prebuild: [ run ]
     rm: [ run ]
     run-image: [ run ]
     run-labels: [ run ]
     service-ports: [ run ]
     skip-pull: [ build, run ]
-    secrets: [ buildkit, build ]
     shell: [ run ]
     ssh: [ build ]
     target: [ build ]
@@ -183,4 +226,5 @@ configuration:
     user: [ run ]
     volumes: [ run ]
     wait: [ run ]
+    with-dependencies: [ build ]
     workdir: [ run ]
